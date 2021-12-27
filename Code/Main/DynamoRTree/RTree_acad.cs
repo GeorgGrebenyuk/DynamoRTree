@@ -23,7 +23,6 @@ namespace DynamoRTree
 
         private RTree_acad() { }
         //public static RTree<ObjectId> GlobalTree;
-
         /// <summary>
         /// Implementation of RTree object (by drawing's object's if and theit BoundingBoxes)
         /// </summary>
