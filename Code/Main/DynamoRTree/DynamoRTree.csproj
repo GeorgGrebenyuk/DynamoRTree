@@ -32,6 +32,9 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <PropertyGroup>
+    <RunPostBuildEvent>Always</RunPostBuildEvent>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="accoremgd">
       <HintPath>C:\Program Files\Autodesk\AutoCAD 2022\accoremgd.dll</HintPath>
@@ -53,16 +56,21 @@
       <HintPath>C:\Program Files\Autodesk\AutoCAD 2022\C3D\AeccDbMgd.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="AutoCADNodes">
+      <HintPath>C:\Program Files\Autodesk\AutoCAD 2022\C3D\Dynamo\AutoCADNodes.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="DynamoServices, Version=2.11.1.4656, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\..\..\..\Civil3D.CustomNodes\Code\DebugApp\packages\DynamoVisualProgramming.DynamoServices.2.11.1.4656\lib\net48\DynamoServices.dll</HintPath>
-      <Private>True</Private>
+      <Private>False</Private>
     </Reference>
     <Reference Include="DynamoUnits, Version=2.11.1.4656, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\..\..\..\Civil3D.CustomNodes\Code\DebugApp\packages\DynamoVisualProgramming.ZeroTouchLibrary.2.11.1.4656\lib\net48\DynamoUnits.dll</HintPath>
-      <Private>True</Private>
+      <Private>False</Private>
     </Reference>
     <Reference Include="ProtoGeometry, Version=2.11.1.4616, Culture=neutral, processorArchitecture=AMD64">
       <HintPath>..\..\..\..\Civil3D.CustomNodes\Code\DebugApp\packages\DynamoVisualProgramming.ZeroTouchLibrary.2.11.1.4656\lib\net48\ProtoGeometry.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -76,6 +84,7 @@
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RTree_acad.cs" />
+    <Compile Include="RTree_acad_geom.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\RTree\RTree.csproj">
@@ -90,4 +99,7 @@
     <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>XCOPY "$(TargetDir)*" "C:\Users\Georg\AppData\Roaming\Autodesk\C3D 2022\Dynamo\2.12\packages\DynamoRTree\bin\" /S /Y</PostBuildEvent>
+  </PropertyGroup>
 </Project>

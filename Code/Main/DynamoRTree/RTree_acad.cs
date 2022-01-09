@@ -28,11 +28,11 @@ namespace DynamoRTree
         /// </summary>
         /// <param name="Rectangle_Collection"></param>
         /// <returns>Rtree instance></returns>
-        public static RTree<ObjectId> CreateRTreeByRTreeRectangles (Dictionary<string, object> IdsAndRectangles)
+        public static RTree<ObjectId> CreateRTreeByRTreeRectangles (List<ObjectId> Objects_Id, List<RTree.Rectangle> Rectangle_Collection)
         {
             RTree<ObjectId> new_tree = new RTree<ObjectId>();
-            List<ObjectId> Objects_Id = (List<ObjectId>)IdsAndRectangles["objects_id"];
-            List<RTree.Rectangle> Rectangle_Collection = (List<RTree.Rectangle>)IdsAndRectangles["objects_RtreeRectangle"];
+            //List<ObjectId> Objects_Id = (List<ObjectId>)IdsAndRectangles["objects_id"];
+            //List<RTree.Rectangle> Rectangle_Collection = (List<RTree.Rectangle>)IdsAndRectangles["objects_RtreeRectangle"];
             for (int i1 = 0; i1 < Objects_Id.Count; i1++) 
             {
                 new_tree.Add(Rectangle_Collection[i1], Objects_Id[i1]);
@@ -46,10 +46,11 @@ namespace DynamoRTree
         /// </summary>
         /// <param name="object_id_list">List with Autocad's DBObject id</param>
         /// <returns>List with RTree.Rectangle</returns>
-        //[MultiReturn(new[] { "objects_id", "objects_RtreeRectangle" })]
-        public static Dictionary<string,object> GetRTReeRectangleByObjects (List<ObjectId> object_id_list)
+        [MultiReturn(new[] { "objects_id", "objects_RtreeRectangle" })]
+        public static Dictionary<string,object> GetRTReeRectangleByObjects (Autodesk.AutoCAD.DynamoNodes.Document doc_dyn, List<ObjectId> object_id_list)
         {
-            Document doc = Application.DocumentManager.MdiActiveDocument;
+            //Document doc = Application.DocumentManager.MdiActiveDocument;
+            Document doc = doc_dyn.AcDocument;
             Database db = doc.Database;
             //Dictionary<string, RTree.Rectangle> rect_list = new Dictionary<string, Rectangle>();
             List<ObjectId> objects_id_temp = new List<ObjectId>();
@@ -138,6 +139,88 @@ namespace DynamoRTree
         public static List<ObjectId> GetObgects_Contains(RTree<ObjectId> tree, RTree.Rectangle object_rectangle)
         {
             return tree.Contains(object_rectangle);
+        }
+
+        /// <summary>
+        /// Auxilary node that delete or choosing drawing's linear objects in selected area by each (Radius value) 
+        /// non more than MaxLength's value and (if SearchMode =0) which length is equal at least one of value in LineLength's list or (if SearchMode =1)
+        /// which length is more than LineLengt[0] and smaller than LineLengt[1]
+        /// </summary>
+        /// <param name="obj_group">List with object's id</param>
+        /// <param name="tree">RTree</param>
+        /// <param name="LineLength">Double array with at least two numbers</param>
+        /// <param name="MaxLength">Maximum length of line</param>
+        /// <param name="Radius">Value of searching's value</param>
+        /// <param name="SearchMode">Mode for work with LineLength, read node's description</param>
+        /// <param name="NeedDeleteObjects">Boolean, if true -- selected objects will be removed</param>
+        public static List<ObjectId> GetObjectsByCirclesSearching(Autodesk.AutoCAD.DynamoNodes.Document doc_dyn, List<ObjectId> obj_group, RTree<ObjectId> tree, List<double> LineLength, double MaxLength, double Radius, int SearchMode = 0, bool NeedDeleteObjects = false)
+        {
+            //Document doc = Application.DocumentManager.MdiActiveDocument;
+            Document doc = doc_dyn.AcDocument;
+            Editor ed = doc.Editor;
+            Database db = doc.Database;
+            int debug_counter1 = 0;
+
+            //Список для удаления объектов
+            List<ObjectId> lines_for_deleting = new List<ObjectId>();
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                foreach (ObjectId line_id in obj_group)
+                {
+                    Autodesk.AutoCAD.DatabaseServices.Line OneLine = tr.GetObject(line_id, OpenMode.ForRead) as Autodesk.AutoCAD.DatabaseServices.Line;
+                    bool IsObjectValid = false;
+                    double LineLen = Math.Round(OneLine.Length, 8);
+                    if (SearchMode == 0)
+                    {
+                        if (LineLength.Contains(LineLen)) IsObjectValid = true;
+                    }
+                    else if (SearchMode == 1)
+                    {
+                        if (LineLen >= LineLength[0] && LineLen <= LineLength[1]) IsObjectValid = true;
+                    }
+                    if (IsObjectValid)
+                    {
+                        Point3d line_start = OneLine.StartPoint; Point3d line_end = OneLine.EndPoint;
+                        Point3d line_center = new Point3d(new double[3] { (line_start.X + line_end.X) / 2.0, (line_start.Y + line_end.Y) / 2.0, 0 });
+                        double[] pnt = new double[3] { line_center.X, line_center.Y, 0 };
+
+                        List<ObjectId> intersects_lines = RTree_acad.GetObgects_Intersects(tree, RTree_acad.GetRTReeRectangleByPoint(pnt, (float)Radius));
+                        List<ObjectId> internal_lines = RTree_acad.GetObgects_Contains(tree, RTree_acad.GetRTReeRectangleByPoint(pnt, (float)Radius));
+                        AddLines(intersects_lines); AddLines(internal_lines);
+                        void AddLines(List<ObjectId> IndexedList)
+                        {
+                            foreach (ObjectId OneCode in IndexedList)
+                            {
+                                Autodesk.AutoCAD.DatabaseServices.Line OneLine2 = tr.GetObject(OneCode, OpenMode.ForRead) as Autodesk.AutoCAD.DatabaseServices.Line;
+                                if (!lines_for_deleting.Contains(OneCode) && OneLine2.Length < 1) lines_for_deleting.Add(OneCode);
+                            }
+                        }
+
+                        debug_counter1++;
+                    }
+                }
+
+                tr.Commit();
+            }
+            if (NeedDeleteObjects == true && lines_for_deleting.Count > 0)
+            {
+                using (DocumentLock acDocLock = doc.LockDocument())
+                {
+                    using (Transaction tr = db.TransactionManager.StartTransaction())
+                    {
+                        foreach (ObjectId line_id in lines_for_deleting)
+                        {
+                            Autodesk.AutoCAD.DatabaseServices.DBObject OneObject = tr.GetObject(line_id, OpenMode.ForWrite) as Autodesk.AutoCAD.DatabaseServices.DBObject;
+                            OneObject.Erase(true);
+                        }
+                        tr.Commit();
+                    }
+                }
+
+                return null;
+            }
+            else return lines_for_deleting;
+
         }
 
     }
